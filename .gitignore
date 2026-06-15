@@ -1,0 +1,35 @@
+# Python virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# Environment variables (secret API keys)
+.env
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local databases
+*.db
+*.sqlite3
+
+# Vector Store / Indexes (ChromaDB local data)
+text_index/
+text_json_index/
+
+# Large PDF files / catalog data
+*.pdf
+Folders/
+json_folders/
+bula_zap.json
+catalogo_consolidado.json
+catalogo_consolidado_resumido.json
+
+# IDEs and OS metadata
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
