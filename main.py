@@ -2,7 +2,9 @@ import os
 import sqlite3
 from typing import List, Dict
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from langchain_core.messages import HumanMessage
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import PromptTemplate
@@ -47,7 +49,7 @@ class ChatResponse(BaseModel):
 
 # 4. Inicialização de Recursos
 embeddings_model = OpenAIEmbeddings()
-llm_model = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.1, max_tokens=1000)
+llm_model = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.1, max_tokens=1000, streaming=True)
 
 # Prompt Customizado: Personalidade e Memória
 template = """Você é o Agrônomo Virtual da Adubos Real SA. 
@@ -118,7 +120,58 @@ async def chat_endpoint(request: ChatRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Erro interno ao processar: {str(e)}")
 
-# 6. Inicialização do Servidor (Para rodar com 'python main.py')
+# 6. Endpoint de streaming
+@app.post("/chat/stream")
+async def chat_stream_endpoint(request: ChatRequest):
+    pergunta_limpa = request.question.strip().lower()
+
+    cursor.execute("SELECT resposta FROM faq_cache WHERE pergunta = ?", (pergunta_limpa,))
+    resultado_cache = cursor.fetchone()
+
+    if resultado_cache:
+        async def cached_stream():
+            yield resultado_cache[0]
+        return StreamingResponse(cached_stream(), media_type="text/plain")
+
+    historico_formatado = "\n".join(
+        [f"{msg['role'].capitalize()}: {msg['content']}" for msg in request.history]
+    ) or "Nenhuma conversa anterior ainda."
+
+    try:
+        contexts = retriever.invoke(request.question)
+        context_text = "\n\n".join(doc.page_content for doc in contexts)
+
+        prompt_formatado = PROMPT.format(
+            chat_history=historico_formatado,
+            context=context_text,
+            question=request.question,
+        )
+
+        partes: list[str] = []
+
+        async def generate():
+            async for chunk in llm_model.astream([HumanMessage(content=prompt_formatado)]):
+                token = chunk.content
+                if token:
+                    partes.append(token)
+                    yield token
+
+            resposta_final = "".join(partes)
+            cursor.execute(
+                "INSERT OR REPLACE INTO faq_cache (pergunta, resposta) VALUES (?, ?)",
+                (pergunta_limpa, resposta_final),
+            )
+            conn.commit()
+
+        return StreamingResponse(generate(), media_type="text/plain")
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erro interno ao processar: {str(e)}")
+
+
+# 7. Inicialização do Servidor (Para rodar com 'python main.py')
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)

@@ -466,6 +466,21 @@ with st.container():
                 replace_chip(i, query)
                 st.rerun()
 
+API_BASE = "http://127.0.0.1:8000"
+
+
+def stream_resposta(payload: dict):
+    with requests.post(
+        f"{API_BASE}/chat/stream",
+        json=payload,
+        stream=True,
+        timeout=(5, None),
+    ) as r:
+        for chunk in r.iter_content(chunk_size=None, decode_unicode=True):
+            if chunk:
+                yield chunk
+
+
 prompt = st.chat_input("Pergunte alguma coisa ao Tião...")
 
 if getattr(st.session_state, "faq_query", None):
@@ -489,40 +504,28 @@ if prompt:
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    historico_envio = st.session_state.messages[:-1][-4:]
+    payload = {"question": prompt, "history": historico_envio}
+    answer = None
+
     with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        message_placeholder.markdown("Pensando...")
-        
         try:
-            api_url = "http://127.0.0.1:8000/chat"
-            historico_envio = st.session_state.messages[:-1][-4:] 
-            
-            payload = {"question": prompt, "history": historico_envio}
-            response = requests.post(api_url, json=payload)
-            
-            if response.status_code == 200:
-                dados = response.json()
-                answer = dados.get("answer", "Desculpe, a IA retornou erro!")
-                is_cached = dados.get("cached", False)
-                
-                if is_cached:
-                    answer += "\n\n*(⚡ Resposta via Cache SQLite)*"
-
-                message_placeholder.markdown(answer)
-                
-                c.execute("INSERT INTO mensagens (session_id, role, content) VALUES (?, ?, ?)", 
-                          (st.session_state.session_id, "assistant", answer))
-                conn.commit()
-                st.session_state.messages.append({"role": "assistant", "content": answer})
-                
-                if len(st.session_state.messages) == 2:
-                    st.rerun()
-
-            else:
-                message_placeholder.error(f"⚠️ Erro ao consultar a API. Código: {response.status_code}")
-                
+            answer = st.write_stream(stream_resposta(payload))
         except requests.exceptions.ConnectionError:
-            message_placeholder.error("🚨 Não foi possível conectar à API. Você rodou seu `main.py`?")
+            st.error("🚨 Não foi possível conectar à API. Você rodou seu `main.py`?")
+        except requests.exceptions.Timeout:
+            st.error("⏱️ A API demorou demais para responder. Tente novamente.")
+        except Exception as e:
+            st.error(f"⚠️ Erro inesperado: {str(e)}")
+
+    if answer:
+        c.execute("INSERT INTO mensagens (session_id, role, content) VALUES (?, ?, ?)",
+                  (st.session_state.session_id, "assistant", answer))
+        conn.commit()
+        st.session_state.messages.append({"role": "assistant", "content": answer})
+
+        if len(st.session_state.messages) == 2:
+            st.rerun()
 
 scroll_mode = st.session_state.get("scroll_mode")
 if scroll_mode == "bottom":
