@@ -3,11 +3,10 @@ import sqlite3
 from typing import List, Dict
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.chat_models.openai import ChatOpenAI
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import PromptTemplate
-from langchain_classic.chains.question_answering import load_qa_chain
+from langchain.chains.question_answering import load_qa_chain
 
 from dotenv import load_dotenv
 
@@ -48,7 +47,7 @@ class ChatResponse(BaseModel):
 
 # 4. Inicialização de Recursos
 embeddings_model = OpenAIEmbeddings()
-llm_model = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.1, max_tokens=300) # Temperatura leve para não ser tão robótico
+llm_model = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.1, max_tokens=1000)
 
 # Prompt Customizado: Personalidade e Memória
 template = """Você é o Agrônomo Virtual da Adubos Real SA. 
@@ -68,7 +67,7 @@ Sua Resposta como Agrônomo da Adubos Real:"""
 PROMPT = PromptTemplate(template=template, input_variables=["chat_history", "context", "question"])
 
 # Carrega o banco de vetores gerado previamente
-vectordb = Chroma(persist_directory="text_json_index", embedding_function=embeddings_model)
+vectordb = Chroma(persist_directory="text_index", embedding_function=embeddings_model)
 
 # Retriever otimizado usando MMR (Maximal Marginal Relevance) para mais diversidade de fontes
 retriever = vectordb.as_retriever(

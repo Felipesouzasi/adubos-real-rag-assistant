@@ -46,8 +46,7 @@ try:
     
     # Salvar num novo Vector DB (ChromaDB)
     embeddings_model = OpenAIEmbeddings()
-    db_json = Chroma.from_documents(chunks_json, embedding=embeddings_model, persist_directory="text_json_index")
-    db_json.persist()
+    db_json = Chroma.from_documents(chunks_json, embedding=embeddings_model, persist_directory="text_index")
     print("VectorDB do JSON criado e salvo com sucesso usando catalogo_consolidado.json!")
     
 except FileNotFoundError:

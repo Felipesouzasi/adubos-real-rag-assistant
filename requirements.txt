@@ -3,6 +3,10 @@ pydantic
 langchain
 langchain-openai
 langchain-community
+langchain-text-splitters
 chromadb
 pymupdf4llm
 uvicorn
+python-dotenv
+requests
+streamlit
