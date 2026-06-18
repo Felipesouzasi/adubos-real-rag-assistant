@@ -41,3 +41,26 @@ Registro em primeira pessoa de cada alteração feita no projeto, com contexto d
 - Em [update_db.py](update_db.py): removemos a linha `db_json.persist()`
 
 ---
+
+## [P1] RAG indexava apenas um documento
+
+**Problema:** `update_db.py` processava somente `catalogo_consolidado.json`. Os demais materiais (folders de citros, cafezal, folhosas, hortifruti, enraizamento, bula do Zapp QI) não eram indexados — qualquer pergunta sobre esses produtos retornava sem contexto. Além disso, o `chunk_overlap=20` (2% do chunk) fazia frases na fronteira entre chunks serem perdidas no retrieval.
+
+**O que mudamos:**
+- Reescrevemos [update_db.py](update_db.py) do zero com varredura automática dos diretórios `.`, `json_folders/` e `Folders/`, indexando todos os `.json` encontrados
+- `chunk_overlap` aumentado de `20` para `150` (15% do chunk_size)
+- Adicionamos limpeza do índice antigo com `shutil.rmtree` antes de recriar, evitando duplicação ao rodar o script múltiplas vezes
+- Adicionamos constante `SKIP_FILES` para excluir arquivos redundantes (`catalogo_consolidado_resumido.json`)
+- Metadados do documento agora incluem o nome do arquivo-fonte em todos os chunks
+
+---
+
+## [P1] Respostas bloqueavam a UI sem feedback visual
+
+**Problema:** A resposta da IA só aparecia depois de 100% gerada. Com `max_tokens=1000` e respostas técnicas longas, o usuário podia esperar 10-20 segundos olhando para "Pensando..." sem nenhum feedback. Não havia timeout configurado na chamada HTTP.
+
+**O que mudamos:**
+- Em [main.py](main.py): adicionamos `streaming=True` ao `ChatOpenAI`, importamos `StreamingResponse` e `HumanMessage`, e criamos o endpoint `POST /chat/stream` que transmite tokens em tempo real via `llm_model.astream()` e salva no cache ao final do stream
+- Em [chat_ui.py](chat_ui.py): substituímos a chamada `requests.post` + `message_placeholder` por uma função geradora `stream_resposta()` consumida via `st.write_stream()`, que exibe cada token conforme chega; adicionamos `timeout=(5, None)` (5s para conexão, sem limite de leitura) e tratamento separado para `ConnectionError` e `Timeout`
+
+---
