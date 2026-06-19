@@ -41,7 +41,8 @@ app = FastAPI(title="RAG API - Safra Real", description="API para consultas no c
 # 3. Modelos de Dados (Schemas) - Atualizados para receber histórico
 class ChatRequest(BaseModel):
     question: str
-    history: List[Dict[str, str]] = [] # Recebe as regras do frontend
+    history: List[Dict[str, str]] = []
+    user_login: str = ""
 
 class ChatResponse(BaseModel):
     answer: str

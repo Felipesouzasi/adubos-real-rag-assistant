@@ -1,11 +1,67 @@
+import os
 import streamlit as st
 import requests
 import sqlite3
 import uuid
 import random
 from datetime import datetime
+import db
+
+
+def _render_login():
+    st.markdown("""
+    <style>
+        [data-testid="stSidebar"] { display: none !important; }
+        .block-container { max-width: 440px !important; margin: 0 auto; padding-top: 5rem !important; }
+        button[kind="primary"] { background-color: #28a745 !important; border-color: #28a745 !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style='text-align: center; margin-bottom: 2.5rem;'>
+        <div style='font-size: 3.5rem; line-height: 1;'>🌱</div>
+        <h2 style='margin: 0.6rem 0 0.2rem;'>Tião</h2>
+        <p style='color: #86868b; margin: 0; font-size: 0.95rem;'>Assistente Adubos Real — faça login para continuar</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.form("login_form"):
+        login = st.text_input("Login", placeholder="seu.login")
+        senha = st.text_input("Senha", type="password", placeholder="••••••••")
+        submitted = st.form_submit_button("Entrar", type="primary", use_container_width=True)
+
+    if submitted:
+        if not login.strip() or not senha:
+            st.error("Preencha login e senha.")
+            return
+        try:
+            usuario = db.buscar_usuario(login.strip().lower())
+            if usuario and db.verificar_senha(senha, usuario["pswd"]):
+                tipo, id_sap = db.resolver_tipo_consultor(usuario)
+                st.session_state.usuario = {
+                    "login":           usuario["login"],
+                    "name":            usuario.get("name") or usuario["login"],
+                    "email":           usuario.get("email", ""),
+                    "picture":         usuario.get("picture"),
+                    "role":            usuario.get("role"),
+                    "setor":           usuario.get("setor"),
+                    "filial":          usuario.get("filial"),
+                    "tipo_consultor":  tipo,
+                    "id_sap":          id_sap,
+                }
+                st.rerun()
+            else:
+                st.error("Login ou senha incorretos.")
+        except Exception as e:
+            st.error("Não foi possível conectar ao banco de dados. Verifique as configurações do .env.")
+            print(f"[login] erro: {e}")
+
 
 st.set_page_config(page_title="Adubos Real - Assistente", page_icon="🌱", layout="wide")
+
+if "usuario" not in st.session_state:
+    _render_login()
+    st.stop()
 
 st.markdown("""
 <style>
@@ -292,11 +348,14 @@ c = conn.cursor()
 c.execute("CREATE TABLE IF NOT EXISTS chats (session_id TEXT PRIMARY KEY, titulo TEXT, data_criacao TEXT)")
 c.execute("CREATE TABLE IF NOT EXISTS mensagens (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT, role TEXT, content TEXT)")
 
-# Garantir que a coluna 'fixado' exista numa atualização de layout
-try:
-    c.execute("ALTER TABLE chats ADD COLUMN fixado INTEGER DEFAULT 0")
-except sqlite3.OperationalError:
-    pass
+for col_migration in [
+    "ALTER TABLE chats ADD COLUMN fixado INTEGER DEFAULT 0",
+    "ALTER TABLE chats ADD COLUMN user_login TEXT DEFAULT ''",
+]:
+    try:
+        c.execute(col_migration)
+    except sqlite3.OperationalError:
+        pass
 
 conn.commit()
 
@@ -347,6 +406,23 @@ def modal_renomear(sid, titulo_atual):
         st.rerun()
 
 with st.sidebar:
+    _u = st.session_state.usuario
+    col_nome, col_sair = st.columns([0.78, 0.22])
+    with col_nome:
+        st.markdown(f"**{_u['name']}**")
+        if _u["tipo_consultor"] == "externo":
+            st.caption(f"Consultor Externo · SAP {_u['id_sap']}")
+        elif _u["tipo_consultor"] == "interno":
+            st.caption("Consultor Interno")
+        elif _u.get("role"):
+            st.caption(_u["role"])
+    with col_sair:
+        if st.button("Sair", help="Encerrar sessão", use_container_width=True):
+            del st.session_state.usuario
+            st.rerun()
+
+    st.markdown("<hr style='margin: 8px 0 12px; border:0; border-top:1px solid rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+
     if st.button("➕ Novo Chat", use_container_width=True):
         st.session_state.session_id = str(uuid.uuid4())
         st.session_state.chat_title = "Novo Chat"        # Reseta os chips dinâmicos
@@ -358,7 +434,10 @@ with st.sidebar:
     
     st.markdown("### Histórico") 
     
-    c.execute("SELECT session_id, titulo, fixado FROM chats ORDER BY fixado DESC, data_criacao DESC")
+    c.execute(
+        "SELECT session_id, titulo, fixado FROM chats WHERE user_login = ? ORDER BY fixado DESC, data_criacao DESC",
+        (st.session_state.usuario["login"],),
+    )
     for sid, titulo, fixado in c.fetchall():
         if st.session_state.get("rename_mode") == sid:
             modal_renomear(sid, titulo)
@@ -466,7 +545,7 @@ with st.container():
                 replace_chip(i, query)
                 st.rerun()
 
-API_BASE = "http://127.0.0.1:8000"
+API_BASE = os.getenv("API_BASE", "http://127.0.0.1:8000")
 
 
 def stream_resposta(payload: dict):
@@ -493,8 +572,10 @@ if prompt:
         novo_titulo = prompt[:30] + "..." if len(prompt) > 30 else prompt
         st.session_state.chat_title = novo_titulo
         data_agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        c.execute("INSERT INTO chats (session_id, titulo, data_criacao) VALUES (?, ?, ?)", 
-                  (st.session_state.session_id, novo_titulo, data_agora))
+        c.execute(
+            "INSERT INTO chats (session_id, titulo, data_criacao, user_login) VALUES (?, ?, ?, ?)",
+            (st.session_state.session_id, novo_titulo, data_agora, st.session_state.usuario["login"]),
+        )
         
     c.execute("INSERT INTO mensagens (session_id, role, content) VALUES (?, ?, ?)", 
               (st.session_state.session_id, "user", prompt))
@@ -505,7 +586,11 @@ if prompt:
         st.markdown(prompt)
 
     historico_envio = st.session_state.messages[:-1][-4:]
-    payload = {"question": prompt, "history": historico_envio}
+    payload = {
+        "question": prompt,
+        "history": historico_envio,
+        "user_login": st.session_state.usuario["login"],
+    }
     answer = None
 
     with st.chat_message("assistant"):

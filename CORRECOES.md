@@ -55,6 +55,38 @@ Registro em primeira pessoa de cada alteração feita no projeto, com contexto d
 
 ---
 
+## [P2] Arquivos sensíveis e binários rastreados no git
+
+**Problema:** O `.gitignore` original excluía os JSONs de dados (`json_folders/`, `Folders/`) que são necessários para reconstruir o índice, mas não excluía os arquivos `.db` de runtime. O índice vetorial (`text_index/`) — binário grande e regenerável — estava sendo commitado desnecessariamente.
+
+**O que mudamos:**
+- Reescrevi [.gitignore](.gitignore): removi a exclusão de `json_folders/` e dos JSONs individuais (precisamos deles no git), mantive `*.pdf`, `text_index/`, `*.db` e `.env` fora do repositório
+- Criei [.env.example](.env.example) com template de todas as variáveis necessárias
+
+---
+
+## [P2] Autenticação de usuários e isolamento de dados
+
+**Problema:** Qualquer pessoa podia acessar o Tião sem autenticação, ver o histórico de todos os outros usuários e, futuramente, teria acesso a dados de comissão de outros consultores. Não havia conceito de identidade de usuário em nenhuma camada.
+
+**O que mudamos:**
+- Criei [db.py](db.py): módulo de banco de dados com `buscar_usuario()` (JOIN entre `sec_users` e `ad_user_cfg`), `verificar_senha()` com detecção automática de esquema de hash (bcrypt, SHA-256, SHA-1, MD5) e `resolver_tipo_consultor()` que mapeia `CONSULTOR` → externo + SAP ID e `LOJA` → interno
+- Em [chat_ui.py](chat_ui.py): adicionei função `_render_login()` com tela de login centralizada e brandada; adicionei gate `if "usuario" not in st.session_state: _render_login(); st.stop()` antes de todo o CSS e lógica de chat; adicionei bloco de usuário + botão "Sair" no topo da sidebar; migrei a tabela `chats` com coluna `user_login` para isolar histórico por usuário; filtrei todos os SELECTs e INSERTs por `user_login`
+- Em [main.py](main.py): adicionei campo opcional `user_login: str = ""` ao `ChatRequest` para uso futuro nas consultas de comissão
+- Em [requirements.txt](requirements.txt): adicionei `psycopg2-binary` e `bcrypt`
+- `API_BASE` agora lido do `.env` com fallback para `http://127.0.0.1:8000`
+
+---
+
+## [P2] README reescrito em primeira pessoa
+
+**Problema:** O README estava em terceira pessoa e não documentava a arquitetura atual (login, tipos de consultor, variáveis de ambiente).
+
+**O que mudamos:**
+- Reescrevi [README.md](README.md) em primeira pessoa, documentando stack, fluxo de execução, tabela de arquivos e lógica de perfil do consultor
+
+---
+
 ## [P1] Respostas bloqueavam a UI sem feedback visual
 
 **Problema:** A resposta da IA só aparecia depois de 100% gerada. Com `max_tokens=1000` e respostas técnicas longas, o usuário podia esperar 10-20 segundos olhando para "Pensando..." sem nenhum feedback. Não havia timeout configurado na chamada HTTP.
