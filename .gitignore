@@ -1,35 +1,31 @@
-# Python virtual environment
+# Ambiente virtual
 .venv/
 venv/
 ENV/
 env/
 
-# Environment variables (secret API keys)
+# Variáveis de ambiente (contém credenciais e chaves de API)
 .env
 
-# Python cache files
+# Cache Python
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Local databases
+# Bancos SQLite gerados em runtime
 *.db
 *.sqlite3
 
-# Vector Store / Indexes (ChromaDB local data)
+# Índice vetorial gerado por update_db.py (binário grande, regenerável com update_db.py)
 text_index/
 text_json_index/
 
-# Large PDF files / catalog data
+# PDFs originais (binários grandes — usar update_db.py para regenerar os JSONs)
 *.pdf
-Folders/
-json_folders/
-bula_zap.json
-catalogo_consolidado.json
-catalogo_consolidado_resumido.json
 
-# IDEs and OS metadata
+# IDEs e metadados de SO
 .vscode/
 .idea/
 Thumbs.db
 Desktop.ini
+.DS_Store
