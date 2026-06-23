@@ -13,18 +13,13 @@ if not exist ".venv" (
     pause
     exit /b
 )
-
 :: 2. Inicia o Backend (FastAPI) em uma nova janela
 echo [2/3] Iniciando o Backend (FastAPI) em nova janela...
-start "RAG Backend - FastAPI" cmd /k "call .venv\Scripts\activate.bat && python main.py"
+start "RAG Backend - FastAPI" cmd /k ".venv\Scripts\python.exe main.py"
 
 :: Aguarda 3 segundos para o backend inicializar antes do frontend
 timeout /t 3 /nobreak >nul
 
 :: 3. Inicia o Frontend (Streamlit) na janela atual
 echo [3/3] Iniciando o Frontend (Streamlit)...
-call .venv\Scripts\activate.bat
-python -m streamlit run chat_ui.py
-
-
-pause
+.venv\Scripts\python.exe -m streamlit run chat_ui.py

@@ -2,13 +2,13 @@ import os
 import sqlite3
 from typing import List, Dict
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, HTMLResponse
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import PromptTemplate
-from langchain.chains.question_answering import load_qa_chain
+from langchain_classic.chains.question_answering import load_qa_chain
 
 from dotenv import load_dotenv
 
@@ -37,6 +37,31 @@ conn.commit()
 
 # 2. Setup do App
 app = FastAPI(title="RAG API - Safra Real", description="API para consultas no catálogo da Safra Real com Histórico e Cache")
+
+@app.get("/", response_class=HTMLResponse)
+async def read_root():
+    return """
+    <html>
+        <head>
+            <title>RAG API - Safra Real</title>
+            <style>
+                body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #0e1117; color: white; }
+                .container { text-align: center; padding: 2rem; border-radius: 10px; background-color: #1e293b; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+                a { color: #28a745; text-decoration: none; font-weight: bold; }
+                a:hover { text-decoration: underline; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🌱 API do Tião - Safra Real</h1>
+                <p>O backend (API) está rodando com sucesso!</p>
+                <p>Para interagir com o chat, acesse a interface do Streamlit em:</p>
+                <h2><a href="http://localhost:8501" target="_blank">http://localhost:8501</a></h2>
+            </div>
+        </body>
+    </html>
+    """
+
 
 # 3. Modelos de Dados (Schemas) - Atualizados para receber histórico
 class ChatRequest(BaseModel):
